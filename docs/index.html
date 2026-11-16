@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; worker-src 'none'"
+    />
+    <meta
+      name="description"
+      content="An original byte arena allocator. Allocate, write real bytes, resize, free and inspect fragmentation in a bounded managed memory arena."
+    />
+    <title>Spanwell - room for the next byte</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <a class="skip" href="#lab">Skip to arena</a>
+    <header>
+      <a class="brand" href="#"
+        ><span class="mark" aria-hidden="true">▥</span> spanwell</a
+      >
+      <nav aria-label="Main">
+        <a href="#how">How it works</a><a href="#limits">Boundaries</a
+        ><a href="https://github.com/Aditya2375/spanwell">Source ↗</a>
+      </nav>
+    </header>
+    <main>
+      <section class="hero">
+        <div>
+          <p class="eyebrow">MEMORY, GIVEN SHAPE / 025</p>
+          <h1>Room for<br />the <i>next byte.</i></h1>
+          <p class="intro">
+            Find a span. Split the space. Write something real. An allocator you
+            can understand, one block at a time.
+          </p>
+          <a class="link" href="#lab">Enter the arena <span>↓</span></a>
+        </div>
+        <div
+          class="hero-map"
+          aria-label="Illustration of used, free and padded memory spans"
+        >
+          <div class="map-label">
+            <span>A MANAGED BYTE ARENA</span><span>00 → FF</span>
+          </div>
+          <div class="illustration">
+            <div class="a"><b>A</b><span>payload</span></div>
+            <div class="pad"><span>pad</span></div>
+            <div class="free"><span>room to grow</span></div>
+            <div class="b"><b>B</b><span>payload</span></div>
+          </div>
+          <div class="under-map">
+            <span>Bytes live here.</span><span>Metadata lives outside.</span>
+          </div>
+          <p>Space is finite.<br />Placement is a choice.</p>
+          <span class="small-caps">FIRST FIT / BEST FIT / COALESCE</span>
+        </div>
+      </section>
+      <div class="facts">
+        <span>Real byte storage</span><span>Checked, opaque handles</span
+        ><span>Relative offsets, never host pointers</span>
+      </div>
+      <section id="lab" tabindex="-1">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">01 / THE ARENA</p>
+            <h2>Every byte has a place.</h2>
+          </div>
+          <p>
+            This app suballocates an actual Uint8Array. Read and write payload
+            bytes, then watch the free list change. It does not replace your
+            computer's memory manager.
+          </p>
+        </div>
+        <div class="lab">
+          <aside>
+            <div class="aside-head">
+              <h3>Configure</h3>
+              <span>VOLATILE / LOCAL</span>
+            </div>
+            <label for="capacity">Arena capacity</label
+            ><select id="capacity">
+              <option value="128">128 bytes</option>
+              <option value="256" selected>256 bytes</option>
+              <option value="512">512 bytes</option>
+              <option value="1024">1024 bytes</option></select
+            ><label for="policy">Placement policy</label
+            ><select id="policy">
+              <option value="first">First fit · lowest address</option>
+              <option value="best">
+                Best fit · smallest free span
+              </option></select
+            ><button id="reset" class="wide">Create / reset arena</button>
+            <p id="dirty" hidden role="status">
+              Configuration changed. Reset to apply; existing handles and bytes
+              will be lost.
+            </p>
+            <p class="hint">
+              Reset zeroes the old arena. All handles become invalid. No data is
+              saved.
+            </p>
+            <div class="aside-section">
+              <h3>Reserve a span</h3>
+              <form id="allocate-form">
+                <label for="size">Requested bytes</label
+                ><input
+                  id="size"
+                  inputmode="numeric"
+                  value="24"
+                  maxlength="4"
+                /><label for="alignment">Relative alignment</label
+                ><select id="alignment">
+                  <option>1</option>
+                  <option>2</option>
+                  <option>4</option>
+                  <option selected>8</option>
+                  <option>16</option>
+                  <option>32</option>
+                  <option>64</option></select
+                ><button id="allocate" class="primary wide">Allocate →</button>
+              </form>
+              <p class="hint">
+                Capacity rounds up to 8 bytes. Alignment is relative to offset
+                0, not a host address. Padding is not writable.
+              </p>
+            </div>
+            <div class="aside-section">
+              <h3>Try a pattern</h3>
+              <button id="example" class="wide">Create fragmented arena</button>
+              <p class="hint">
+                Resets to a 256-byte arena. Eight 32-byte spans, alternating
+                free. Total free 128 bytes, largest span 32.
+              </p>
+            </div>
+            <p id="error" role="alert"></p>
+          </aside>
+          <div class="workspace">
+            <div class="workspace-head">
+              <div>
+                <p class="eyebrow">ARENA / 01</p>
+                <h3 id="status">256 bytes, ready.</h3>
+              </div>
+              <span class="verified" id="invariants">Partition checked</span>
+            </div>
+            <div class="metrics">
+              <div>
+                <span>Requested</span><b id="requested">0 <small>B</small></b>
+              </div>
+              <div>
+                <span>Free total</span><b id="free">256 <small>B</small></b>
+              </div>
+              <div>
+                <span>Largest free span</span
+                ><b id="largest">256 <small>B</small></b>
+              </div>
+              <div>
+                <span>Live padding</span><b id="padding">0 <small>B</small></b>
+              </div>
+            </div>
+            <div class="panel-title">
+              <h3>Address space</h3>
+              <span id="range">0 → 256</span>
+            </div>
+            <div class="legend">
+              <span><i class="used"></i>Payload</span
+              ><span><i class="pad"></i>Padding</span
+              ><span><i class="free"></i>Free</span>
+            </div>
+            <p class="hint">
+              Select a span to inspect it. This proportional strip can scroll on
+              a phone; the ledger below keeps every value readable.
+            </p>
+            <div
+              class="arena-scroll"
+              tabindex="0"
+              aria-label="Scrollable proportional arena"
+            >
+              <div id="arena"></div>
+            </div>
+            <div class="selection">
+              <span id="selection-title">No live span selected</span>
+              <p id="selection-detail">
+                Allocate a block, or select an address span.
+              </p>
+            </div>
+            <div class="editor">
+              <div class="panel-title">
+                <h3>Payload workbench</h3>
+                <span>checked byte access</span>
+              </div>
+              <label for="handle">Live allocation</label
+              ><select id="handle"></select>
+              <div class="two">
+                <div>
+                  <label for="offset">Write offset</label
+                  ><input
+                    id="offset"
+                    inputmode="numeric"
+                    value="0"
+                    maxlength="4"
+                  />
+                </div>
+                <div>
+                  <label for="resize-size">Resize to bytes</label
+                  ><input
+                    id="resize-size"
+                    inputmode="numeric"
+                    value="40"
+                    maxlength="4"
+                  />
+                </div>
+              </div>
+              <label for="hex">Payload in hexadecimal</label
+              ><textarea id="hex" rows="2" spellcheck="false" maxlength="8192">
+48 65 6c 6c 6f 20 62 79 74 65 73</textarea
+              >
+              <p class="hint">
+                Pairs of hex digits; spaces between bytes are allowed. Example
+                writes "Hello bytes". Reads return the entire requested payload,
+                never padding.
+              </p>
+              <div class="actions">
+                <button id="write">Write bytes</button
+                ><button id="read">Read payload</button
+                ><button id="resize">Resize span</button
+                ><button id="free-span" class="danger">Free span</button>
+              </div>
+              <label for="readback">Actual payload readback</label>
+              <pre id="readback" tabindex="0">No read yet.</pre>
+              <p id="read-note" class="hint">
+                Readback is cleared whenever bytes or selection change. It is
+                not a saved copy.
+              </p>
+            </div>
+            <div class="panel-title ledger-title">
+              <h3>Span ledger</h3>
+              <span>address-ordered partition</span>
+            </div>
+            <div id="ledger"></div>
+            <div class="panel-title ledger-title">
+              <h3>Operation journal</h3>
+              <span>latest 40 operations</span>
+            </div>
+            <ol id="journal" reversed></ol>
+          </div>
+        </div>
+      </section>
+      <section id="how">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">02 / THE MECHANISM</p>
+            <h2>Split carefully.<br />Merge immediately.</h2>
+          </div>
+          <p>
+            A finite free list and checked offsets. No magic pointers. The
+            allocator handles the same actual bytes that the workbench reads.
+          </p>
+        </div>
+        <div class="rules">
+          <article>
+            <span>01 / PLACE</span>
+            <h3>Choose a fitting span.</h3>
+            <p>
+              First fit picks the lowest-address free span that fits after
+              alignment. Best fit picks the smallest full free span that fits,
+              with lower address breaking ties.
+            </p>
+          </article>
+          <article>
+            <span>02 / SPLIT</span>
+            <h3>Keep the remainder.</h3>
+            <p>
+              Round requested capacity to 8 bytes. Leave any alignment prefix
+              and trailing space on the free list. All allocation bytes begin at
+              zero.
+            </p>
+          </article>
+          <article>
+            <span>03 / RESIZE</span>
+            <h3>Preserve the prefix.</h3>
+            <p>
+              Shrink, grow into an adjacent free span, or move. Successful
+              resize always returns a fresh handle; failure keeps the old bytes
+              and handle intact.
+            </p>
+          </article>
+          <article>
+            <span>04 / RETURN</span>
+            <h3>Leave no gap between gaps.</h3>
+            <p>
+              Free zeroes the span and merges free neighbors on both sides.
+              Stale and foreign handles are rejected. Adjacent free spans never
+              remain separate.
+            </p>
+          </article>
+        </div>
+        <div class="callout">
+          <b>Free bytes ≠ one free span.</b>
+          <p>
+            Four 32-byte gaps cannot satisfy a 64-byte allocation. Even a large
+            gap may not fit after alignment. This is external fragmentation, not
+            a hidden memory leak.
+          </p>
+        </div>
+      </section>
+      <section id="limits" class="limits">
+        <div>
+          <p class="eyebrow">03 / KNOW THE BOUNDARY</p>
+          <h2>A suballocator.<br />Not a system allocator.</h2>
+          <p>
+            The native Python library manages a bytearray. The browser
+            independently manages a Uint8Array. Both allocate, copy, read and
+            erase actual bytes inside a fixed arena. Neither provides native
+            addresses or replaces malloc.
+          </p>
+          <a class="link" href="https://github.com/Aditya2375/spanwell"
+            >Read the implementation <span>↗</span></a
+          >
+        </div>
+        <dl>
+          <div>
+            <dt>Checked API, not isolation</dt>
+            <dd>
+              Handles use exact object identity, not forgeable offset values,
+              but this is trusted in-process code. Direct access, reflection,
+              threads, hostile objects and native memory corruption are outside
+              the contract.
+            </dd>
+          </div>
+          <div>
+            <dt>Finite space and metadata</dt>
+            <dd>
+              Library arena 32..4096 bytes, multiple of 8. Relative alignment
+              1..64, powers of two. Metadata lives outside the arena, so
+              reported free space excludes metadata overhead. Handle issuance is
+              capped at 65535 per arena.
+            </dd>
+          </div>
+          <div>
+            <dt>Zeroing is not secure erasure</dt>
+            <dd>
+              Freed arena bytes and padding are zeroed; copies returned by reads
+              and host runtime copies may remain elsewhere. Reset loses all live
+              allocations. Do not enter secrets.
+            </dd>
+          </div>
+          <div>
+            <dt>No hidden machinery</dt>
+            <dd>
+              No garbage collector, compaction, thread safety, virtual memory,
+              OS page allocation, file writes, network, storage, uploads or
+              telemetry. This is not a memory benchmark or a production
+              memory-safety guarantee.
+            </dd>
+          </div>
+        </dl>
+      </section>
+    </main>
+    <footer>
+      <span>spanwell / an original systems study</span
+      ><span
+        >By Aditya Kulkarni ·
+        <a href="https://github.com/Aditya2375/spanwell">MIT source</a></span
+      >
+    </footer>
+  </body>
+</html>
